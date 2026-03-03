@@ -1,0 +1,15 @@
+services:
+  game:
+    build: .
+    ports:
+      - "3000:3000"
+    environment:
+      - NODE_ENV=production
+      - PORT=3000
+      - BUN_GC_HEAP_LIMIT=3072
+    restart: always
+    deploy:
+      resources:
+        limits:
+          memory: 3584M
+          cpus: '1.8'
