@@ -102,10 +102,15 @@ function resolveSocketUrl() {
   const envUrl = import.meta.env.VITE_SOCKET_URL?.trim();
   if (envUrl) return envUrl;
 
-  // When running the client in Vite dev server (usually :5173),
-  // default to the game backend on :3000.
-  if (window.location.port !== "3000") {
-    return `${window.location.protocol}//${window.location.hostname}:3000`;
+  const serverPort = import.meta.env.PORT?.trim();
+
+  // In local Vite dev, the frontend can run on a different port than the socket server.
+  if (
+    import.meta.env.DEV &&
+    serverPort &&
+    window.location.port !== serverPort
+  ) {
+    return `${window.location.protocol}//${window.location.hostname}:${serverPort}`;
   }
 
   return undefined;
@@ -121,11 +126,17 @@ export default function Game({ playerName, playerColor, onDeath }: GameProps) {
   const [isMobile, setIsMobile] = useState(false);
 
   // Game state refs for rendering loop — state buffer for smooth interpolation
-  const gameStateRef = useRef<GameState>({ players: [], foods: [], blackHoles: [] });
+  const gameStateRef = useRef<GameState>({
+    players: [],
+    foods: [],
+    blackHoles: [],
+  });
   const stateBufferRef = useRef<{ state: GameState; time: number }[]>([]);
   const RENDER_DELAY = 60; // Render 60ms behind real-time (just over 1 tick at 20fps) for smooth interpolation
   const myIdRef = useRef<string>("");
-  const killFeedRef = useRef<{ id: string; killer: string; victim: string; timer: number }[]>([]);
+  const killFeedRef = useRef<
+    { id: string; killer: string; victim: string; timer: number }[]
+  >([]);
   const gameSizeRef = useRef({ width: 3000, height: 3000 });
   const mousePosRef = useRef({
     x: window.innerWidth / 2,
@@ -158,7 +169,7 @@ export default function Game({ playerName, playerColor, onDeath }: GameProps) {
         "3": "😭",
         "4": "💀",
         "5": "🎯",
-        "6": "🔥"
+        "6": "🔥",
       };
       if (emoteMap[e.key] && socketRef.current) {
         socketRef.current.emit("emote", emoteMap[e.key]);
@@ -176,7 +187,11 @@ export default function Game({ playerName, playerColor, onDeath }: GameProps) {
 
     // Mobile detection
     const checkMobile = () => {
-      setIsMobile(/Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent) || navigator.maxTouchPoints > 0);
+      setIsMobile(
+        /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(
+          navigator.userAgent,
+        ) || navigator.maxTouchPoints > 0,
+      );
     };
     checkMobile();
     window.addEventListener("resize", checkMobile);
@@ -247,7 +262,7 @@ export default function Game({ playerName, playerColor, onDeath }: GameProps) {
         id: Math.random().toString(36).substr(2, 9),
         killer: data.killer,
         victim: data.victim,
-        timer: 300 // 5 seconds at 60fps approx
+        timer: 300, // 5 seconds at 60fps approx
       });
       if (killFeedRef.current.length > 5) {
         killFeedRef.current.shift();
@@ -307,12 +322,16 @@ export default function Game({ playerName, playerColor, onDeath }: GameProps) {
         const fromTime = buffer[fromIdx].time;
         const toTime = buffer[toIdx].time;
         const duration = toTime - fromTime;
-        const t = duration > 0 ? Math.max(0, Math.min(1, (renderTime - fromTime) / duration)) : 1;
+        const t =
+          duration > 0
+            ? Math.max(0, Math.min(1, (renderTime - fromTime) / duration))
+            : 1;
 
         // Interpolate player positions
         const interpolatedPlayers = toState.players.map((np) => {
           const pp = fromState.players.find((p) => p.id === np.id);
-          if (!pp || pp.segments.length === 0 || np.segments.length === 0) return np;
+          if (!pp || pp.segments.length === 0 || np.segments.length === 0)
+            return np;
 
           const interpSegments = np.segments.map((ns, i) => {
             const ps = pp.segments[i] || pp.segments[pp.segments.length - 1];
@@ -370,7 +389,8 @@ export default function Game({ playerName, playerColor, onDeath }: GameProps) {
       if (!(window as any).currentZoom) {
         (window as any).currentZoom = 1.0;
       }
-      (window as any).currentZoom += (targetZoom - (window as any).currentZoom) * 0.05;
+      (window as any).currentZoom +=
+        (targetZoom - (window as any).currentZoom) * 0.05;
       const zoom = (window as any).currentZoom;
 
       // Clear background
@@ -402,7 +422,7 @@ export default function Game({ playerName, playerColor, onDeath }: GameProps) {
 
               // If within pull radius, calculate terror ratio
               if (dist < bh.radius * 4 && dist > 10) {
-                const gravityRatio = 1 - (dist / (bh.radius * 4)); // 0 = far, 1 = event horizon
+                const gravityRatio = 1 - dist / (bh.radius * 4); // 0 = far, 1 = event horizon
                 voidGravityRatio = Math.max(voidGravityRatio, gravityRatio);
 
                 const terrorShake = gravityRatio * 20; // up to 20px violent shake
@@ -432,8 +452,14 @@ export default function Game({ playerName, playerColor, onDeath }: GameProps) {
       const viewHH = viewH / 2;
 
       // Draw across entire visible camera bounds, stopping at map edges
-      const startX = Math.max(0, Math.floor((cx - viewHW) / gridSize) * gridSize);
-      const startY = Math.max(0, Math.floor((cy - viewHH) / gridSize) * gridSize);
+      const startX = Math.max(
+        0,
+        Math.floor((cx - viewHW) / gridSize) * gridSize,
+      );
+      const startY = Math.max(
+        0,
+        Math.floor((cy - viewHH) / gridSize) * gridSize,
+      );
       const endX = Math.min(gameSizeRef.current.width, cx + viewHW);
       const endY = Math.min(gameSizeRef.current.height, cy + viewHH);
 
@@ -486,7 +512,9 @@ export default function Game({ playerName, playerColor, onDeath }: GameProps) {
           const blink = Math.floor(Date.now() / blinkRate) % 2 === 0;
           ctx.beginPath();
           ctx.arc(bh.x, bh.y, bh.radius, 0, Math.PI * 2);
-          ctx.fillStyle = blink ? "rgba(255, 0, 0, 0.5)" : "rgba(255, 0, 0, 0.1)";
+          ctx.fillStyle = blink
+            ? "rgba(255, 0, 0, 0.5)"
+            : "rgba(255, 0, 0, 0.1)";
           ctx.fill();
 
           ctx.beginPath();
@@ -509,7 +537,14 @@ export default function Game({ playerName, playerColor, onDeath }: GameProps) {
           ctx.arc(bh.x, bh.y, bh.radius, 0, Math.PI * 2);
 
           // Gradient for black hole
-          const grad = ctx.createRadialGradient(bh.x, bh.y, 0, bh.x, bh.y, bh.radius);
+          const grad = ctx.createRadialGradient(
+            bh.x,
+            bh.y,
+            0,
+            bh.x,
+            bh.y,
+            bh.radius,
+          );
           grad.addColorStop(0, "black");
           grad.addColorStop(0.7, "rgba(20, 0, 40, 0.8)");
           grad.addColorStop(1, "rgba(50, 0, 100, 0)");
@@ -522,7 +557,13 @@ export default function Game({ playerName, playerColor, onDeath }: GameProps) {
           ctx.translate(bh.x, bh.y);
           ctx.rotate(Date.now() / 300); // slow spin
           ctx.beginPath();
-          ctx.arc(0, 0, bh.radius + Math.sin(Date.now() / 150) * 15, 0, Math.PI * 2);
+          ctx.arc(
+            0,
+            0,
+            bh.radius + Math.sin(Date.now() / 150) * 15,
+            0,
+            Math.PI * 2,
+          );
           ctx.strokeStyle = "rgba(168, 85, 247, 0.4)"; // purple glowing edge
           ctx.lineWidth = 5;
           ctx.setLineDash([20, 15]);
@@ -555,7 +596,14 @@ export default function Game({ playerName, playerColor, onDeath }: GameProps) {
           // Portal 1: Cyan
           ctx.beginPath();
           ctx.arc(wh.x1, wh.y1, wh.radius, 0, Math.PI * 2);
-          const grad1 = ctx.createRadialGradient(wh.x1, wh.y1, 0, wh.x1, wh.y1, wh.radius);
+          const grad1 = ctx.createRadialGradient(
+            wh.x1,
+            wh.y1,
+            0,
+            wh.x1,
+            wh.y1,
+            wh.radius,
+          );
           grad1.addColorStop(0, "black");
           grad1.addColorStop(0.8, "rgba(0, 255, 255, 0.5)");
           grad1.addColorStop(1, "rgba(0, 255, 255, 0)");
@@ -576,7 +624,14 @@ export default function Game({ playerName, playerColor, onDeath }: GameProps) {
           // Portal 2: Orange
           ctx.beginPath();
           ctx.arc(wh.x2, wh.y2, wh.radius, 0, Math.PI * 2);
-          const grad2 = ctx.createRadialGradient(wh.x2, wh.y2, 0, wh.x2, wh.y2, wh.radius);
+          const grad2 = ctx.createRadialGradient(
+            wh.x2,
+            wh.y2,
+            0,
+            wh.x2,
+            wh.y2,
+            wh.radius,
+          );
           grad2.addColorStop(0, "black");
           grad2.addColorStop(0.8, "rgba(255, 165, 0, 0.5)");
           grad2.addColorStop(1, "rgba(255, 165, 0, 0)");
@@ -599,7 +654,13 @@ export default function Game({ playerName, playerColor, onDeath }: GameProps) {
       // Draw Meteor Showers
       const meteorShowers = state.meteorShowers || [];
       for (const ms of meteorShowers) {
-        if (ms.x + ms.radius < cullStartX || ms.x - ms.radius > cullEndX || ms.y + ms.radius < cullStartY || ms.y - ms.radius > cullEndY) continue;
+        if (
+          ms.x + ms.radius < cullStartX ||
+          ms.x - ms.radius > cullEndX ||
+          ms.y + ms.radius < cullStartY ||
+          ms.y - ms.radius > cullEndY
+        )
+          continue;
 
         if (ms.state === "warning") {
           ctx.beginPath();
@@ -617,7 +678,7 @@ export default function Game({ playerName, playerColor, onDeath }: GameProps) {
           ctx.setLineDash([]); // reset
 
           // Cinematic meteor drop animation
-          const progress = 1 - (ms.timer / 300); // 0 at start, 1 at impact
+          const progress = 1 - ms.timer / 300; // 0 at start, 1 at impact
           if (progress >= 0 && progress <= 1) {
             const altitude = (1 - progress) * 3000;
             const meteorX = ms.x + altitude;
@@ -625,15 +686,26 @@ export default function Game({ playerName, playerColor, onDeath }: GameProps) {
 
             ctx.save();
             // Fire trail
-            const grad = ctx.createLinearGradient(meteorX, meteorY, meteorX + 500, meteorY - 500);
+            const grad = ctx.createLinearGradient(
+              meteorX,
+              meteorY,
+              meteorX + 500,
+              meteorY - 500,
+            );
             grad.addColorStop(0, "rgba(255, 200, 0, 1)");
             grad.addColorStop(0.5, "rgba(255, 50, 0, 0.8)");
             grad.addColorStop(1, "rgba(0, 0, 0, 0)");
 
             ctx.beginPath();
             ctx.moveTo(meteorX, meteorY);
-            ctx.lineTo(meteorX + 200 + altitude * 0.2, meteorY - 150 - altitude * 0.2);
-            ctx.lineTo(meteorX + 150 + altitude * 0.2, meteorY - 200 - altitude * 0.2);
+            ctx.lineTo(
+              meteorX + 200 + altitude * 0.2,
+              meteorY - 150 - altitude * 0.2,
+            );
+            ctx.lineTo(
+              meteorX + 150 + altitude * 0.2,
+              meteorY - 200 - altitude * 0.2,
+            );
             ctx.fillStyle = grad;
             ctx.fill();
 
@@ -651,12 +723,20 @@ export default function Game({ playerName, playerColor, onDeath }: GameProps) {
 
       // Draw foods — BATCH RENDERING: group simple foods by color to minimize draw calls
       // First pass: collect normal low-value foods by color for batching
-      const foodsByColor = new Map<string, { x: number; y: number; r: number }[]>();
+      const foodsByColor = new Map<
+        string,
+        { x: number; y: number; r: number }[]
+      >();
       const specialFoods: Food[] = [];
 
       for (const food of state.foods) {
         // Frustum Culling: Skip rendering if food is completely off-screen
-        if (food.x < cullStartX || food.x > cullEndX || food.y < cullStartY || food.y > cullEndY) {
+        if (
+          food.x < cullStartX ||
+          food.x > cullEndX ||
+          food.y < cullStartY ||
+          food.y > cullEndY
+        ) {
           continue;
         }
 
@@ -714,7 +794,11 @@ export default function Game({ playerName, playerColor, onDeath }: GameProps) {
           ctx.shadowBlur = 0;
           ctx.shadowColor = "#FFFFFF";
           ctx.fillStyle = "#FFD700"; // Gold
-        } else if (food.type === "magnet" || food.type === "speed" || food.type === "invincibility") {
+        } else if (
+          food.type === "magnet" ||
+          food.type === "speed" ||
+          food.type === "invincibility"
+        ) {
           // Draw floating crystal for buffs
           const size = 18;
           ctx.arc(food.x, food.y, size, 0, Math.PI * 2);
@@ -769,7 +853,8 @@ export default function Game({ playerName, playerColor, onDeath }: GameProps) {
         } else {
           ctx.beginPath();
           const baseRadius = Math.max(5, Math.sqrt(food.value) * 5);
-          const pulse = food.value >= 3 ? Math.sin(Date.now() / 150 + food.x) * 3 : 0;
+          const pulse =
+            food.value >= 3 ? Math.sin(Date.now() / 150 + food.x) * 3 : 0;
           ctx.arc(food.x, food.y, baseRadius + pulse, 0, Math.PI * 2);
 
           ctx.fillStyle = food.color;
@@ -798,17 +883,34 @@ export default function Game({ playerName, playerColor, onDeath }: GameProps) {
         const tail = player.segments[player.segments.length - 1];
 
         // If BOTH head and tail are far off-screen, skip render. If one is inside, draw.
-        const headOffScreen = head.x < cullStartX - 3000 || head.x > cullEndX + 3000 || head.y < cullStartY - 3000 || head.y > cullEndY + 3000;
-        const tailOffScreen = tail.x < cullStartX - 3000 || tail.x > cullEndX + 3000 || tail.y < cullStartY - 3000 || tail.y > cullEndY + 3000;
+        const headOffScreen =
+          head.x < cullStartX - 3000 ||
+          head.x > cullEndX + 3000 ||
+          head.y < cullStartY - 3000 ||
+          head.y > cullEndY + 3000;
+        const tailOffScreen =
+          tail.x < cullStartX - 3000 ||
+          tail.x > cullEndX + 3000 ||
+          tail.y < cullStartY - 3000 ||
+          tail.y > cullEndY + 3000;
         if (headOffScreen && tailOffScreen) {
           continue; // Completely offscreen
         }
 
         // Draw player buff aura behind them (and Leviathan Boss glow)
-        if ((player.activeBuff || player.isLeviathan) && player.segments.length > 0) {
+        if (
+          (player.activeBuff || player.isLeviathan) &&
+          player.segments.length > 0
+        ) {
           const head = player.segments[0];
           ctx.beginPath();
-          ctx.arc(head.x, head.y, radius * 2.5 + Math.sin(Date.now() / 100) * 5, 0, Math.PI * 2);
+          ctx.arc(
+            head.x,
+            head.y,
+            radius * 2.5 + Math.sin(Date.now() / 100) * 5,
+            0,
+            Math.PI * 2,
+          );
           if (player.activeBuff?.type === "magnet") {
             ctx.strokeStyle = "rgba(59, 130, 246, 0.5)";
           } else if (player.activeBuff?.type === "speed") {
@@ -828,7 +930,9 @@ export default function Game({ playerName, playerColor, onDeath }: GameProps) {
         //   Layer 2: Main body stroke (smooth continuous tube)
         //   Layer 3: Alternating stripe pattern circles on top
         if (player.segments.length > 1) {
-          const bodyColor = (player as any).isPoisoned ? "#a855f7" : player.color;
+          const bodyColor = (player as any).isPoisoned
+            ? "#a855f7"
+            : player.color;
 
           // Parse the player color to create a darker variant for outline and stripes
           const darkerColor = (() => {
@@ -942,7 +1046,13 @@ export default function Game({ playerName, playerColor, onDeath }: GameProps) {
 
         // Head highlight (small white reflection circle for 3D pop)
         ctx.beginPath();
-        ctx.arc(head.x - radius * 0.2, head.y - radius * 0.2, radius * 0.3, 0, Math.PI * 2);
+        ctx.arc(
+          head.x - radius * 0.2,
+          head.y - radius * 0.2,
+          radius * 0.3,
+          0,
+          Math.PI * 2,
+        );
         ctx.fillStyle = "rgba(255,255,255,0.15)";
         ctx.shadowBlur = 0;
         ctx.fill();
@@ -966,16 +1076,34 @@ export default function Game({ playerName, playerColor, onDeath }: GameProps) {
 
             // Left horn
             ctx.beginPath();
-            ctx.moveTo(segment.x + Math.cos(angle - 0.8) * radius, segment.y + Math.sin(angle - 0.8) * radius);
-            ctx.lineTo(segment.x + Math.cos(angle - 2.5) * (radius * 2.5), segment.y + Math.sin(angle - 2.5) * (radius * 2.5));
-            ctx.lineTo(segment.x + Math.cos(angle - 1.5) * radius, segment.y + Math.sin(angle - 1.5) * radius);
+            ctx.moveTo(
+              segment.x + Math.cos(angle - 0.8) * radius,
+              segment.y + Math.sin(angle - 0.8) * radius,
+            );
+            ctx.lineTo(
+              segment.x + Math.cos(angle - 2.5) * (radius * 2.5),
+              segment.y + Math.sin(angle - 2.5) * (radius * 2.5),
+            );
+            ctx.lineTo(
+              segment.x + Math.cos(angle - 1.5) * radius,
+              segment.y + Math.sin(angle - 1.5) * radius,
+            );
             ctx.fill();
 
             // Right horn
             ctx.beginPath();
-            ctx.moveTo(segment.x + Math.cos(angle + 0.8) * radius, segment.y + Math.sin(angle + 0.8) * radius);
-            ctx.lineTo(segment.x + Math.cos(angle + 2.5) * (radius * 2.5), segment.y + Math.sin(angle + 2.5) * (radius * 2.5));
-            ctx.lineTo(segment.x + Math.cos(angle + 1.5) * radius, segment.y + Math.sin(angle + 1.5) * radius);
+            ctx.moveTo(
+              segment.x + Math.cos(angle + 0.8) * radius,
+              segment.y + Math.sin(angle + 0.8) * radius,
+            );
+            ctx.lineTo(
+              segment.x + Math.cos(angle + 2.5) * (radius * 2.5),
+              segment.y + Math.sin(angle + 2.5) * (radius * 2.5),
+            );
+            ctx.lineTo(
+              segment.x + Math.cos(angle + 1.5) * radius,
+              segment.y + Math.sin(angle + 1.5) * radius,
+            );
             ctx.fill();
 
             ctx.shadowBlur = 0; // reset
@@ -984,15 +1112,33 @@ export default function Game({ playerName, playerColor, onDeath }: GameProps) {
             ctx.fillStyle = player.color;
 
             ctx.beginPath();
-            ctx.moveTo(segment.x + Math.cos(angle - 0.5) * radius, segment.y + Math.sin(angle - 0.5) * radius);
-            ctx.lineTo(segment.x + Math.cos(angle - 0.2) * (radius * 1.5), segment.y + Math.sin(angle - 0.2) * (radius * 1.5));
-            ctx.lineTo(segment.x + Math.cos(angle) * (radius * 0.8), segment.y + Math.sin(angle) * (radius * 0.8));
+            ctx.moveTo(
+              segment.x + Math.cos(angle - 0.5) * radius,
+              segment.y + Math.sin(angle - 0.5) * radius,
+            );
+            ctx.lineTo(
+              segment.x + Math.cos(angle - 0.2) * (radius * 1.5),
+              segment.y + Math.sin(angle - 0.2) * (radius * 1.5),
+            );
+            ctx.lineTo(
+              segment.x + Math.cos(angle) * (radius * 0.8),
+              segment.y + Math.sin(angle) * (radius * 0.8),
+            );
             ctx.fill();
 
             ctx.beginPath();
-            ctx.moveTo(segment.x + Math.cos(angle + 0.5) * radius, segment.y + Math.sin(angle + 0.5) * radius);
-            ctx.lineTo(segment.x + Math.cos(angle + 0.2) * (radius * 1.5), segment.y + Math.sin(angle + 0.2) * (radius * 1.5));
-            ctx.lineTo(segment.x + Math.cos(angle) * (radius * 0.8), segment.y + Math.sin(angle) * (radius * 0.8));
+            ctx.moveTo(
+              segment.x + Math.cos(angle + 0.5) * radius,
+              segment.y + Math.sin(angle + 0.5) * radius,
+            );
+            ctx.lineTo(
+              segment.x + Math.cos(angle + 0.2) * (radius * 1.5),
+              segment.y + Math.sin(angle + 0.2) * (radius * 1.5),
+            );
+            ctx.lineTo(
+              segment.x + Math.cos(angle) * (radius * 0.8),
+              segment.y + Math.sin(angle) * (radius * 0.8),
+            );
             ctx.fill();
           }
 
@@ -1018,10 +1164,22 @@ export default function Game({ playerName, playerColor, onDeath }: GameProps) {
           ctx.fillStyle = "black";
           const pupilSize = eyeSize * 0.5;
           ctx.beginPath();
-          ctx.arc(lex + Math.cos(angle) * (eyeSize * 0.3), ley + Math.sin(angle) * (eyeSize * 0.3), pupilSize, 0, Math.PI * 2);
+          ctx.arc(
+            lex + Math.cos(angle) * (eyeSize * 0.3),
+            ley + Math.sin(angle) * (eyeSize * 0.3),
+            pupilSize,
+            0,
+            Math.PI * 2,
+          );
           ctx.fill();
           ctx.beginPath();
-          ctx.arc(rex + Math.cos(angle) * (eyeSize * 0.3), rey + Math.sin(angle) * (eyeSize * 0.3), pupilSize, 0, Math.PI * 2);
+          ctx.arc(
+            rex + Math.cos(angle) * (eyeSize * 0.3),
+            rey + Math.sin(angle) * (eyeSize * 0.3),
+            pupilSize,
+            0,
+            Math.PI * 2,
+          );
           ctx.fill();
         }
 
@@ -1030,7 +1188,9 @@ export default function Game({ playerName, playerColor, onDeath }: GameProps) {
           const head = player.segments[0];
 
           // Check for The Crown of the Apex
-          const isRankOne = leaderboardRef.current.length > 0 && player.id === leaderboardRef.current[0].id;
+          const isRankOne =
+            leaderboardRef.current.length > 0 &&
+            player.id === leaderboardRef.current[0].id;
           if (isRankOne) {
             ctx.fillStyle = "#fbbf24";
             ctx.shadowColor = "#f59e0b";
@@ -1099,7 +1259,8 @@ export default function Game({ playerName, playerColor, onDeath }: GameProps) {
             // If LootZone is off-screen, draw a pointer
             if (dist > canvas.width / 2) {
               const angle = Math.atan2(dy, dx);
-              const pointerDist = Math.min(canvas.width, canvas.height) / 2 - 40;
+              const pointerDist =
+                Math.min(canvas.width, canvas.height) / 2 - 40;
               const px = hw + Math.cos(angle) * pointerDist;
               const py = hh + Math.sin(angle) * pointerDist;
 
@@ -1127,19 +1288,40 @@ export default function Game({ playerName, playerColor, onDeath }: GameProps) {
       // UI OVERLAYS (DISCREET HUD)
       const activeAlerts: { text: string; color: string }[] = [];
 
-      const warningBh = (state.blackHoles || []).find(bh => bh.state === "warning");
-      const warningMs = (state.meteorShowers || []).find(ms => ms.state === "warning");
-      const warningWh = (state.wormholes || []).find(wh => wh.state === "warning");
+      const warningBh = (state.blackHoles || []).find(
+        (bh) => bh.state === "warning",
+      );
+      const warningMs = (state.meteorShowers || []).find(
+        (ms) => ms.state === "warning",
+      );
+      const warningWh = (state.wormholes || []).find(
+        (wh) => wh.state === "warning",
+      );
 
-      if (warningMs) activeAlerts.push({ text: "⚠️ METEOR INCOMING - EVACUATE RED ZONE", color: "#ff4d4d" });
-      if (warningBh) activeAlerts.push({ text: "⚠️ GRAVITATIONAL ANOMALY DETECTED", color: "#d633ff" });
-      if (warningWh) activeAlerts.push({ text: "🌀 WORMHOLE RIFTS OPENING", color: "#33ccff" });
+      if (warningMs)
+        activeAlerts.push({
+          text: "⚠️ METEOR INCOMING - EVACUATE RED ZONE",
+          color: "#ff4d4d",
+        });
+      if (warningBh)
+        activeAlerts.push({
+          text: "⚠️ GRAVITATIONAL ANOMALY DETECTED",
+          color: "#d633ff",
+        });
+      if (warningWh)
+        activeAlerts.push({
+          text: "🌀 WORMHOLE RIFTS OPENING",
+          color: "#33ccff",
+        });
 
       if (state.foodFrenzy) {
         // Golden overlay
         ctx.fillStyle = "rgba(255, 215, 0, 0.08)";
         ctx.fillRect(0, 0, canvas.width, canvas.height);
-        activeAlerts.push({ text: "✨ GOLDEN FOOD FRENZY ACTIVE ✨", color: "#FFDF00" });
+        activeAlerts.push({
+          text: "✨ GOLDEN FOOD FRENZY ACTIVE ✨",
+          color: "#FFDF00",
+        });
       }
 
       // Draw stacked alerts
@@ -1205,7 +1387,7 @@ export default function Game({ playerName, playerColor, onDeath }: GameProps) {
           ctx.lineCap = "round";
           ctx.beginPath();
           const startAngle = -Math.PI / 2;
-          const endAngle = startAngle + (Math.PI * 2 * progress);
+          const endAngle = startAngle + Math.PI * 2 * progress;
           ctx.arc(centerX, centerY, radius - 3, startAngle, endAngle);
           ctx.stroke();
 
@@ -1251,13 +1433,17 @@ export default function Game({ playerName, playerColor, onDeath }: GameProps) {
         ctx.textAlign = "right";
         ctx.textBaseline = "middle";
         // Format: [Victor] ⚔️ [Victim]
-        ctx.fillText(`${kf.killer} ⚔️ ${kf.victim}`, feedX + feedWidth - 15, feedY + 15);
+        ctx.fillText(
+          `${kf.killer} ⚔️ ${kf.victim}`,
+          feedX + feedWidth - 15,
+          feedY + 15,
+        );
 
         feedY += 35;
       }
 
       // Filter out expired kills
-      killFeedRef.current = killFeedRef.current.filter(kf => kf.timer > 0);
+      killFeedRef.current = killFeedRef.current.filter((kf) => kf.timer > 0);
 
       // Send input to server
       if (me && socketRef.current) {
@@ -1309,7 +1495,7 @@ export default function Game({ playerName, playerColor, onDeath }: GameProps) {
             angle,
             isBoosting: isBoostingRef.current,
             isDashing: wantsDash,
-            dropPoison: wantsPoison
+            dropPoison: wantsPoison,
           });
 
           // Reset impulse triggers
@@ -1405,18 +1591,41 @@ export default function Game({ playerName, playerColor, onDeath }: GameProps) {
           <div className="absolute bottom-12 right-10 flex gap-6 pointer-events-auto">
             <button
               className="w-20 h-20 rounded-full bg-white/10 active:bg-white/30 border-2 border-white/40 text-white font-bold select-none touch-none flex items-center justify-center text-sm shadow-lg backdrop-blur-sm"
-              onTouchStart={(e) => { e.preventDefault(); isBoostingRef.current = true; }}
-              onTouchEnd={(e) => { e.preventDefault(); isBoostingRef.current = false; }}
-              onMouseDown={(e) => { e.preventDefault(); isBoostingRef.current = true; }}
-              onMouseUp={(e) => { e.preventDefault(); isBoostingRef.current = false; }}
-              onMouseLeave={(e) => { e.preventDefault(); isBoostingRef.current = false; }}
+              onTouchStart={(e) => {
+                e.preventDefault();
+                isBoostingRef.current = true;
+              }}
+              onTouchEnd={(e) => {
+                e.preventDefault();
+                isBoostingRef.current = false;
+              }}
+              onMouseDown={(e) => {
+                e.preventDefault();
+                isBoostingRef.current = true;
+              }}
+              onMouseUp={(e) => {
+                e.preventDefault();
+                isBoostingRef.current = false;
+              }}
+              onMouseLeave={(e) => {
+                e.preventDefault();
+                isBoostingRef.current = false;
+              }}
             >
               BOOST
             </button>
             <button
               className="w-20 h-20 rounded-full bg-blue-500/20 active:bg-blue-500/50 border-2 border-blue-400/50 text-white font-bold select-none touch-none flex items-center justify-center text-sm shadow-lg backdrop-blur-sm shadow-blue-500/20"
-              onTouchStart={(e) => { e.preventDefault(); isDashingRef.current = true; setTimeout(() => isDashingRef.current = false, 100); }}
-              onMouseDown={(e) => { e.preventDefault(); isDashingRef.current = true; setTimeout(() => isDashingRef.current = false, 100); }}
+              onTouchStart={(e) => {
+                e.preventDefault();
+                isDashingRef.current = true;
+                setTimeout(() => (isDashingRef.current = false), 100);
+              }}
+              onMouseDown={(e) => {
+                e.preventDefault();
+                isDashingRef.current = true;
+                setTimeout(() => (isDashingRef.current = false), 100);
+              }}
             >
               DASH
             </button>
@@ -1478,7 +1687,9 @@ export default function Game({ playerName, playerColor, onDeath }: GameProps) {
                     {p.name}
                   </span>
                 </div>
-                <span className="font-mono text-neutral-400">{Math.floor(p.score)}</span>
+                <span className="font-mono text-neutral-400">
+                  {Math.floor(p.score)}
+                </span>
               </div>
             ))}
             {leaderboard.length === 0 && (
