@@ -15,5 +15,8 @@ export default defineConfig(({ mode }) => {
         "@": path.resolve(__dirname, "."),
       },
     },
+    server: {
+      allowedHosts: ["br01.microhive.com.br"],
+    },
   };
 });
