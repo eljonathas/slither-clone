@@ -16,7 +16,7 @@ export default defineConfig(({ mode }) => {
       },
     },
     server: {
-      allowedHosts: ["br01.microhive.com.br"],
+      allowedHosts: [".microhive.com.br"],
     },
   };
 });
